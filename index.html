@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MONITORING SUHU WIB</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/raphael/2.3.0/raphael.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/justgage/1.4.1/justgage.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { background: #fff5f8; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; padding: 20px; color: #333; }
+        .card { background: white; border-radius: 15px; padding: 15px; box-shadow: 0 4px 15px rgba(255, 192, 203, 0.3); margin: 10px auto; max-width: 1200px; border: 1px solid #ffe4e1; }
+        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; max-width: 1200px; margin: 0 auto; }
+        .btn { padding: 10px 20px; border: none; border-radius: 25px; color: white; cursor: pointer; font-weight: bold; transition: 0.3s; font-size: 13px; text-transform: uppercase; text-decoration: none; display: inline-block; }
+        .btn:hover { opacity: 0.8; transform: translateY(-2px); }
+        .gauge { height: 180px; }
+        canvas { max-height: 220px; width: 100% !important; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; background: white; font-size: 13px; border-radius: 10px; overflow: hidden; }
+        th { background: #ff69b4; color: white; padding: 12px; }
+        td { padding: 10px; border-bottom: 1px solid #ffe4e1; }
+        .badge { padding: 5px 10px; border-radius: 5px; color: white; font-weight: bold; font-size: 11px; }
+        .control-panel { display: flex; justify-content: center; align-items: center; gap: 20px; flex-wrap: wrap; margin-bottom: 20px; }
+        h5 { margin: 5px 0; color: #db7093; }
+        @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <h1 style="color: #ff1493; text-shadow: 1px 1px 2px #fff; letter-spacing: 2px;">🌸 MONITORING SUHU WIB 🌸</h1>
+    
+    <div class="card">
+        <div class="control-panel">
+            <div>
+                <button class="btn" style="background:#2ecc71" onclick="updateStatus('START')">▶ START</button>
+                <button class="btn" style="background:#e74c3c" onclick="updateStatus('STOP')">■ STOP</button>
+            </div>
+            <div style="background: #fff0f5; padding: 5px 15px; border-radius: 20px; border: 1px solid #ffb6c1;">
+                <label style="font-weight: bold; color: #db7093;">Update: </label>
+                <input type="number" id="intervalInput" value="5" min="1" style="width: 40px; border: none; background: transparent; text-align: center; font-weight: bold;">
+                <label style="color: #db7093;">Detik</label>
+                <button class="btn" style="background:#ff69b4; padding: 5px 10px; margin-left: 5px;" onclick="updateInterval()">SET</button>
+            </div>
+            <a href="https://docs.google.com/spreadsheets/d/1vHjQFeK7bhKAYXuU0TNyO3ICNKp3ZnirjRl16SdKUmM/edit" target="_blank" class="btn" style="background:#3498db;">📂 BUKA SPREADSHEET</a>
+        </div>
+        <span id="statusLabel" style="font-weight: bold; color: #ff1493;">STATUS: MENGHUBUNGKAN...</span>
+    </div>
+
+    <div class="grid">
+        <div class="card"><div id="g1" class="gauge"></div><h5>SENSOR DHT11</h5></div>
+        <div class="card"><div id="g2" class="gauge"></div><h5>SENSOR DS18B20</h5></div>
+        <div class="card"><div id="g3" class="gauge"></div><h5>KELEMBABAN</h5></div>
+    </div>
+
+    <div class="grid">
+        <div class="card"><h5>Grafik DHT11</h5><canvas id="c1"></canvas></div>
+        <div class="card"><h5>Grafik DS18B20</h5><canvas id="c2"></canvas></div>
+        <div class="card"><h5>Grafik Humidity</h5><canvas id="c3"></canvas></div>
+    </div>
+
+    <div class="card" style="max-width: 1200px; margin: 20px auto;">
+        <h3 style="color: #db7093;">📜 DATA HISTORY (WIB)</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Waktu</th>
+                    <th>DHT11 (°C)</th>
+                    <th>DS18B20 (°C)</th>
+                    <th>Hum (%)</th>
+                    <th>Sistem</th>
+                    <th>Kondisi</th>
+                </tr>
+            </thead>
+            <tbody id="rows">
+                <tr><td colspan="6">Menunggu data dari Spreadsheet...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // GANTI DENGAN URL /exec TERBARU SETELAH DEPLOY ULANG APPS SCRIPT
+        const API = "https://script.google.com/macros/s/AKfycbyvtHcoRc5kx_ZakJBGWFRfPL0taPGEHKBtFQaF5uwR6pIhpRvXKEUoo_y_Q4L53jMREw/exec";
+        
+        let gauges = [], charts = [];
+        let fetchTimer;
+        let currentInterval = 5000;
+
+        window.onload = () => {
+            gauges = [
+                new JustGage({id:"g1", value:0, min:0, max:50, title:"Suhu", symbol:"°C", color:"#ff69b4"}),
+                new JustGage({id:"g2", value:0, min:0, max:50, title:"Suhu", symbol:"°C", color:"#ff1493"}),
+                new JustGage({id:"g3", value:0, min:0, max:100, title:"Hum", symbol:"%", color:"#db7093"})
+            ];
+            charts = [
+                initChart('c1', 'DHT11 (°C)', '#ff69b4'),
+                initChart('c2', 'DS18B20 (°C)', '#ff1493'),
+                initChart('c3', 'Humidity (%)', '#db7093')
+            ];
+            startFetching();
+        };
+
+        function initChart(id, label, col) {
+            return new Chart(document.getElementById(id), {
+                type:'line', 
+                data:{ labels:[], datasets:[{ label:label, data:[], borderColor:col, backgroundColor:col+'22', fill:true, tension: 0.4 }] },
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 4, font: { size: 10 } } }
+                    }
+                }
+            });
+        }
+
+        function startFetching() {
+            if (fetchTimer) clearInterval(fetchTimer);
+            fetchData();
+            fetchTimer = setInterval(fetchData, currentInterval);
+        }
+
+        function updateInterval() {
+            const detik = document.getElementById('intervalInput').value;
+            currentInterval = detik * 1000;
+            startFetching();
+            alert("Interval diperbarui ke " + detik + " detik");
+        }
+
+        async function updateStatus(val) {
+            document.getElementById('statusLabel').innerText = "MENGIRIM PERINTAH...";
+            await fetch(`${API}?action=set_status&value=${val}`, { mode: 'no-cors' });
+            setTimeout(fetchData, 1500);
+        }
+
+        async function fetchData() {
+            try {
+                const r = await fetch(API);
+                const data = await r.json();
+                
+                // Filter data: abaikan baris kosong atau header
+                const validData = data.filter(d => d[0] && d[0] !== "Waktu" && !isNaN(parseFloat(d[1])));
+                
+                if (validData.length === 0) return;
+
+                const last = validData[validData.length - 1];
+                gauges[0].refresh(parseFloat(last[1]));
+                gauges[1].refresh(parseFloat(last[2]));
+                gauges[2].refresh(parseFloat(last[3]));
+
+                const hist = validData.slice(-10);
+
+                // KARENA APPS SCRIPT SUDAH PAKAI getDisplayValues(), 
+                // JAM YANG DATANG SUDAH PASTI STRING WIB "yyyy-MM-dd HH:mm:ss"
+                const labels = hist.map(d => {
+                    let s = d[0].toString();
+                    if (s.includes(' ')) return s.split(' ')[1].substring(0, 5); // Ambil Jam:Menit
+                    return s.substring(0, 5);
+                });
+
+                [1, 2, 3].forEach((colIdx, i) => {
+                    charts[i].data.labels = labels;
+                    charts[i].data.datasets[0].data = hist.map(d => parseFloat(d[colIdx]));
+                    charts[i].update('none');
+                });
+
+                document.getElementById('rows').innerHTML = validData.slice(-6).reverse().map(d => {
+                    let fullTime = d[0].toString();
+                    let jamTabel = fullTime.includes(' ') ? fullTime.split(' ')[1] : fullTime;
+                    
+                    let warnaK = d[5] === "BAHAYA" ? "#e74c3c" : "#2ecc71";
+                    let warnaS = d[4] === "RUNNING" ? "#2ecc71" : "#7f8c8d";
+                    
+                    return `<tr>
+                        <td style="font-weight:bold">${jamTabel}</td>
+                        <td>${parseFloat(d[1]).toFixed(1)} °C</td>
+                        <td>${parseFloat(d[2]).toFixed(1)} °C</td>
+                        <td>${parseFloat(d[3]).toFixed(1)} %</td>
+                        <td><span class="badge" style="background:${warnaS}">${d[4] || 'N/A'}</span></td>
+                        <td><span class="badge" style="background:${warnaK}">${d[5] || 'N/A'}</span></td>
+                    </tr>`;
+                }).join('');
+                
+                document.getElementById('statusLabel').innerText = "SISTEM: " + (last[4] || "RUNNING");
+            } catch(e) { 
+                console.log("Fetch error, pastikan sudah Deploy Apps Script!", e); 
+            }
+        }
+    </script>
+</body>
+</html>
