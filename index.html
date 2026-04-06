@@ -80,7 +80,8 @@
     </div>
 
     <script>
-        const API = "https://script.google.com/macros/s/AKfycbymrl7oF5Q1UYj33SLklitcfAXiee5Pm1X5v51whFtsKbK1oq0hZBEqJ3kQJWMUVVqYJw/exec";
+        // LINK SUDAH SAYA PERBARUI KE SCRIPT BARU KAMU (Ag/exec)
+        const API = "https://script.google.com/macros/s/AKfycby-zfIHL8_wwC58IaJHxMTH-L7Jr3W53_ZzHTLVXjYBohnIHB2wipHWIMYjoV8aohhxAg/exec";
         
         let gauges = [], charts = [];
         let fetchTimer;
@@ -148,31 +149,32 @@
 
                 const last = validData[validData.length - 1];
                 
-                gauges[0].refresh(parseFloat(last[1]));
-                gauges[1].refresh(parseFloat(last[2]));
-                gauges[2].refresh(parseFloat(last[3]));
-                gauges[3].refresh(parseFloat(last[4]));
+                // Refresh Gauge dengan data dari kolom E (index 4)
+                gauges[0].refresh(parseFloat(last[1]) || 0);
+                gauges[1].refresh(parseFloat(last[2]) || 0);
+                gauges[2].refresh(parseFloat(last[3]) || 0);
+                gauges[3].refresh(parseFloat(last[4]) || 0);
 
                 const hist = validData.slice(-10);
                 const labels = hist.map(d => d[0].toString().includes(' ') ? d[0].split(' ')[1].substring(0, 5) : d[0].substring(0, 5));
 
                 [1, 2, 3, 4].forEach((colIdx, i) => {
                     charts[i].data.labels = labels;
-                    charts[i].data.datasets[0].data = hist.map(d => parseFloat(d[colIdx]));
+                    charts[i].data.datasets[0].data = hist.map(d => parseFloat(d[colIdx]) || 0);
                     charts[i].update('none');
                 });
 
                 document.getElementById('rows').innerHTML = validData.slice(-6).reverse().map(d => {
                     let jamTabel = d[0].toString().includes(' ') ? d[0].split(' ')[1] : d[0];
                     let warnaK = d[6] === "BAHAYA" ? "#e74c3c" : "#2ecc71";
-                    let warnaS = d[5] === "START" ? "#2ecc71" : "#7f8c8d";
+                    let warnaS = d[5] === "START" || d[5] === "RUNNING" ? "#2ecc71" : "#7f8c8d";
                     
                     return `<tr>
                         <td style="font-weight:bold">${jamTabel}</td>
-                        <td>${parseFloat(d[1]).toFixed(1)}°C</td>
-                        <td>${parseFloat(d[2]).toFixed(1)}°C</td>
-                        <td>${parseFloat(d[3]).toFixed(1)}%</td>
-                        <td>${parseFloat(d[4]).toFixed(1)} ppm</td>
+                        <td>${(parseFloat(d[1]) || 0).toFixed(1)}°C</td>
+                        <td>${(parseFloat(d[2]) || 0).toFixed(1)}°C</td>
+                        <td>${(parseFloat(d[3]) || 0).toFixed(1)}%</td>
+                        <td>${(parseFloat(d[4]) || 0).toFixed(1)} ppm</td>
                         <td><span class="badge" style="background:${warnaS}">${d[5] || 'OFF'}</span></td>
                         <td><span class="badge" style="background:${warnaK}">${d[6] || 'AMAN'}</span></td>
                     </tr>`;
