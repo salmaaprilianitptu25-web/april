@@ -80,7 +80,7 @@
     </div>
 
     <script>
-        const API = "https://script.google.com/macros/s/AKfycbz6E7Bg8PucjP6NtRufUM8Qc8x5Bscb2dfsXEztLpFIUSANwQUbtF1clI5YUr_6gH_a/exec";
+        const API = "https://script.google.com/macros/s/AKfycbzHN8xpEnK4sQNKzLPNgDWFSwKisMx4svxqJaSg_w9D_Qe1zi_hCMSNFEaw3NZguuM8/exec";
         
         let gauges = [], charts = [];
         let fetchTimer;
@@ -91,7 +91,7 @@
                 new JustGage({id:"g1", value:0, min:0, max:60, title:"Temp", symbol:"°C", color:"#ff69b4"}),
                 new JustGage({id:"g2", value:0, min:0, max:60, title:"Temp", symbol:"°C", color:"#ff1493"}),
                 new JustGage({id:"g3", value:0, min:0, max:100, title:"Hum", symbol:"%", color:"#db7093"}),
-                new JustGage({id:"g4", value:0, min:0, max:2000, title:"Gas", symbol:"ppm", color:"#ffa500"})
+                new JustGage({id:"g4", value:0, min:0, max:4000, title:"Gas", symbol:"ppm", color:"#ffa500"})
             ];
             charts = [
                 initChart('c1', 'DHT11 (°C)', '#ff69b4'),
@@ -132,8 +132,8 @@
             document.getElementById('statusLabel').innerText = "MENGIRIM PERINTAH...";
             try {
                 await fetch(`${API}?action=${action}`, { mode: 'no-cors' });
-                alert("Sistem di-set ke: " + val);
-                setTimeout(fetchData, 2000);
+                alert("Sistem Berhasil di-set ke: " + val);
+                setTimeout(fetchData, 1500);
             } catch (e) {
                 alert("Gagal koneksi ke Cloud");
             }
@@ -144,36 +144,33 @@
                 const r = await fetch(API);
                 const data = await r.json();
                 
-                // FILTER: Hanya ambil baris yang kolom pertamanya ada isi (Waktu) 
-                // dan kolom keduanya bukan teks (Header) serta bukan Tahun (di bawah 1000)
+                // --- PERBAIKAN FILTER INDEKS ---
+                // d[0] = Waktu, d[1] = DHT, d[2] = DS18
                 const validData = data.filter(d => 
                     d[0] && 
                     d[0] !== "Waktu" && 
                     !isNaN(parseFloat(d[1])) && 
-                    parseFloat(d[1]) < 1000 
+                    parseFloat(d[1]) < 1000 // Memastikan kolom B bukan Tahun 2026
                 );
 
                 if (validData.length === 0) return;
 
                 const last = validData[validData.length - 1];
                 
-                // REFRESH GAUGE (Index 1-4 sesuai kolom B-E)
+                // REFRESH GAUGE
                 gauges[0].refresh(parseFloat(last[1]) || 0);
                 gauges[1].refresh(parseFloat(last[2]) || 0);
                 gauges[2].refresh(parseFloat(last[3]) || 0);
                 gauges[3].refresh(parseFloat(last[4]) || 0);
 
+                // HISTORI 10 DATA TERAKHIR
                 const hist = validData.slice(-10);
-                
-                // Rapikan Label Waktu (Hanya ambil Jam:Menit)
                 const labels = hist.map(d => {
-                    let str = d[0].toString();
-                    if(str.includes('T')) return str.split('T')[1].substring(0,5); // Format ISO
-                    if(str.includes(' ')) return str.split(' ')[1].substring(0,5); // Format Space
-                    return str.substring(0,5);
+                    let dObj = new Date(d[0]);
+                    return dObj.getHours().toString().padStart(2,'0') + ":" + dObj.getMinutes().toString().padStart(2,'0');
                 });
 
-                // UPDATE GRAFIK
+                // UPDATE GRAFIK (Kolom 1=DHT, 2=DS18, 3=Hum, 4=MQ5)
                 [1, 2, 3, 4].forEach((colIdx, i) => {
                     charts[i].data.labels = labels;
                     charts[i].data.datasets[0].data = hist.map(d => parseFloat(d[colIdx]) || 0);
@@ -182,12 +179,14 @@
 
                 // UPDATE TABEL (6 data terakhir)
                 document.getElementById('rows').innerHTML = validData.slice(-6).reverse().map(d => {
-                    let tglJam = d[0].toString();
-                    let jamTabel = tglJam.includes(' ') ? tglJam.split(' ')[1] : tglJam;
-                    if(jamTabel.length > 8) jamTabel = jamTabel.substring(0,8);
+                    let dObj = new Date(d[0]);
+                    let jamTabel = dObj.getHours().toString().padStart(2,'0') + ":" + 
+                                   dObj.getMinutes().toString().padStart(2,'0') + ":" + 
+                                   dObj.getSeconds().toString().padStart(2,'0');
                     
                     let warnaK = d[6] === "BAHAYA" ? "#e74c3c" : (d[6] === "WASPADA" ? "#f39c12" : "#2ecc71");
-                    let warnaS = d[5] === "START" || d[5] === "ONLINE" ? "#2ecc71" : "#7f8c8d";
+                    let statusLabel = d[5] === "LOGGING" || d[5] === "START" ? "START" : d[5];
+                    let warnaS = (statusLabel === "START" || statusLabel === "ONLINE") ? "#2ecc71" : "#7f8c8d";
                     
                     return `<tr>
                         <td style="font-weight:bold">${jamTabel}</td>
@@ -195,13 +194,18 @@
                         <td>${(parseFloat(d[2]) || 0).toFixed(1)}°C</td>
                         <td>${(parseFloat(d[3]) || 0).toFixed(1)}%</td>
                         <td>${(parseFloat(d[4]) || 0).toFixed(1)} ppm</td>
-                        <td><span class="badge" style="background:${warnaS}">${d[5] || 'OFF'}</span></td>
+                        <td><span class="badge" style="background:${warnaS}">${statusLabel}</span></td>
                         <td><span class="badge" style="background:${warnaK}">${d[6] || 'AMAN'}</span></td>
                     </tr>`;
                 }).join('');
                 
-                document.getElementById('statusLabel').innerText = "SISTEM: " + (last[5] || "READY");
-            } catch(e) { console.log("Fetch error!", e); }
+                // Sinkronkan tulisan status di dashboard
+                let currentStatus = last[5] === "LOGGING" ? "START" : last[5];
+                document.getElementById('statusLabel').innerText = "SISTEM: " + (currentStatus || "READY");
+
+            } catch(e) { 
+                console.log("Fetch error!", e); 
+            }
         }
     </script>
 </body>
