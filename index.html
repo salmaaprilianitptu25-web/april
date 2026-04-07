@@ -80,8 +80,7 @@
     </div>
 
     <script>
-        // LINK SUDAH SAYA PERBARUI KE SCRIPT BARU KAMU (Ag/exec)
-        const API = "https://script.google.com/macros/s/AKfycby-zfIHL8_wwC58IaJHxMTH-L7Jr3W53_ZzHTLVXjYBohnIHB2wipHWIMYjoV8aohhxAg/exec";
+        const API = "https://script.google.com/macros/s/AKfycbz6E7Bg8PucjP6NtRufUM8Qc8x5Bscb2dfsXEztLpFIUSANwQUbtF1clI5YUr_6gH_a/exec";
         
         let gauges = [], charts = [];
         let fetchTimer;
@@ -89,10 +88,10 @@
 
         window.onload = () => {
             gauges = [
-                new JustGage({id:"g1", value:0, min:0, max:50, title:"Temp", symbol:"°C", color:"#ff69b4"}),
-                new JustGage({id:"g2", value:0, min:0, max:50, title:"Temp", symbol:"°C", color:"#ff1493"}),
+                new JustGage({id:"g1", value:0, min:0, max:60, title:"Temp", symbol:"°C", color:"#ff69b4"}),
+                new JustGage({id:"g2", value:0, min:0, max:60, title:"Temp", symbol:"°C", color:"#ff1493"}),
                 new JustGage({id:"g3", value:0, min:0, max:100, title:"Hum", symbol:"%", color:"#db7093"}),
-                new JustGage({id:"g4", value:0, min:0, max:1000, title:"Gas", symbol:"ppm", color:"#ffa500"})
+                new JustGage({id:"g4", value:0, min:0, max:2000, title:"Gas", symbol:"ppm", color:"#ffa500"})
             ];
             charts = [
                 initChart('c1', 'DHT11 (°C)', '#ff69b4'),
@@ -144,30 +143,51 @@
             try {
                 const r = await fetch(API);
                 const data = await r.json();
-                const validData = data.filter(d => d[0] && d[0] !== "Waktu" && !isNaN(parseFloat(d[1])));
+                
+                // FILTER: Hanya ambil baris yang kolom pertamanya ada isi (Waktu) 
+                // dan kolom keduanya bukan teks (Header) serta bukan Tahun (di bawah 1000)
+                const validData = data.filter(d => 
+                    d[0] && 
+                    d[0] !== "Waktu" && 
+                    !isNaN(parseFloat(d[1])) && 
+                    parseFloat(d[1]) < 1000 
+                );
+
                 if (validData.length === 0) return;
 
                 const last = validData[validData.length - 1];
                 
-                // Refresh Gauge dengan data dari kolom E (index 4)
+                // REFRESH GAUGE (Index 1-4 sesuai kolom B-E)
                 gauges[0].refresh(parseFloat(last[1]) || 0);
                 gauges[1].refresh(parseFloat(last[2]) || 0);
                 gauges[2].refresh(parseFloat(last[3]) || 0);
                 gauges[3].refresh(parseFloat(last[4]) || 0);
 
                 const hist = validData.slice(-10);
-                const labels = hist.map(d => d[0].toString().includes(' ') ? d[0].split(' ')[1].substring(0, 5) : d[0].substring(0, 5));
+                
+                // Rapikan Label Waktu (Hanya ambil Jam:Menit)
+                const labels = hist.map(d => {
+                    let str = d[0].toString();
+                    if(str.includes('T')) return str.split('T')[1].substring(0,5); // Format ISO
+                    if(str.includes(' ')) return str.split(' ')[1].substring(0,5); // Format Space
+                    return str.substring(0,5);
+                });
 
+                // UPDATE GRAFIK
                 [1, 2, 3, 4].forEach((colIdx, i) => {
                     charts[i].data.labels = labels;
                     charts[i].data.datasets[0].data = hist.map(d => parseFloat(d[colIdx]) || 0);
                     charts[i].update('none');
                 });
 
+                // UPDATE TABEL (6 data terakhir)
                 document.getElementById('rows').innerHTML = validData.slice(-6).reverse().map(d => {
-                    let jamTabel = d[0].toString().includes(' ') ? d[0].split(' ')[1] : d[0];
-                    let warnaK = d[6] === "BAHAYA" ? "#e74c3c" : "#2ecc71";
-                    let warnaS = d[5] === "START" || d[5] === "RUNNING" ? "#2ecc71" : "#7f8c8d";
+                    let tglJam = d[0].toString();
+                    let jamTabel = tglJam.includes(' ') ? tglJam.split(' ')[1] : tglJam;
+                    if(jamTabel.length > 8) jamTabel = jamTabel.substring(0,8);
+                    
+                    let warnaK = d[6] === "BAHAYA" ? "#e74c3c" : (d[6] === "WASPADA" ? "#f39c12" : "#2ecc71");
+                    let warnaS = d[5] === "START" || d[5] === "ONLINE" ? "#2ecc71" : "#7f8c8d";
                     
                     return `<tr>
                         <td style="font-weight:bold">${jamTabel}</td>
