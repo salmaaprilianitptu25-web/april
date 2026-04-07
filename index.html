@@ -3,49 +3,62 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MONITORING SISTEM CERDAS</title>
+    <title>MONITORING SISTEM CERDAS - FINAL</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/raphael/2.3.0/raphael.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/justgage/1.4.1/justgage.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body { background: #fff5f8; font-family: 'Segoe UI', sans-serif; text-align: center; padding: 20px; }
         .card { background: white; border-radius: 15px; padding: 15px; box-shadow: 0 4px 15px rgba(255, 192, 203, 0.3); margin: 10px auto; max-width: 1200px; border: 1px solid #ffe4e1; }
-        .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; max-width: 1200px; margin: 0 auto; }
-        .btn { padding: 10px 25px; border: none; border-radius: 25px; color: white; cursor: pointer; font-weight: bold; transition: 0.3s; margin: 5px; text-transform: uppercase; }
+        .grid-gauge { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
+        .grid-chart { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
+        .btn { padding: 10px 20px; border: none; border-radius: 25px; color: white; cursor: pointer; font-weight: bold; transition: 0.3s; margin: 5px; font-size: 13px; text-transform: uppercase; }
         .gauge { height: 160px; }
         canvas { max-height: 200px; width: 100% !important; }
         table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; }
         th { background: #ff69b4; color: white; padding: 12px; }
         td { padding: 10px; border-bottom: 1px solid #ffe4e1; }
         .badge { padding: 5px 10px; border-radius: 5px; color: white; font-weight: bold; }
-        @media (max-width: 900px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+        .input-group { background: #fff0f5; padding: 8px 15px; border-radius: 20px; border: 1px solid #ffb6c1; display: inline-flex; align-items: center; gap: 10px; }
+        @media (max-width: 900px) { .grid-gauge, .grid-chart { grid-template-columns: 1fr; } }
     </style>
 </head>
 <body>
     <h1 style="color: #ff1493;">🌸 MONITORING SISTEM CERDAS 🌸</h1>
     
     <div class="card">
-        <button class="btn" style="background:#2ecc71" onclick="updateStatus('START')">▶ START</button>
-        <button class="btn" style="background:#e74c3c" onclick="updateStatus('STOP')">■ STOP</button>
-        <p id="statusLabel" style="font-weight: bold; color: #ff1493; margin-top: 10px;">STATUS: MENGHUBUNGKAN...</p>
+        <div style="margin-bottom: 15px;">
+            <button class="btn" style="background:#2ecc71" onclick="updateStatus('START')">▶ START</button>
+            <button class="btn" style="background:#e74c3c" onclick="updateStatus('STOP')">■ STOP</button>
+            
+            <div class="input-group">
+                <label style="font-weight: bold; color: #db7093;">Update:</label>
+                <input type="number" id="intervalInput" value="5" min="1" style="width: 40px; border: none; background: transparent; text-align: center; font-weight: bold; color: #ff1493;">
+                <label style="color: #db7093;">Detik</label>
+                <button onclick="updateInterval()" style="background:#ff69b4; border:none; color:white; border-radius:10px; padding:2px 8px; cursor:pointer;">SET</button>
+            </div>
+
+            <a href="https://docs.google.com/spreadsheets/d/1vHjQFeK7bhKAYXuU0TNyO3ICNKp3ZnirjRl16SdKUmM/edit" target="_blank" class="btn" style="background:#3498db; text-decoration:none;">📂 SPREADSHEET</a>
+        </div>
+        <p id="statusLabel" style="font-weight: bold; color: #ff1493;">STATUS: MENGHUBUNGKAN...</p>
     </div>
 
-    <div class="grid">
+    <div class="grid-gauge">
         <div class="card"><div id="g1" class="gauge"></div><h5>DHT11 (°C)</h5></div>
         <div class="card"><div id="g2" class="gauge"></div><h5>DS18B20 (°C)</h5></div>
         <div class="card"><div id="g3" class="gauge"></div><h5>HUMIDITY (%)</h5></div>
         <div class="card"><div id="g4" class="gauge"></div><h5>GAS MQ-5 (PPM)</h5></div>
     </div>
 
-    <div class="card">
-        <div class="grid">
-            <div class="card"><h5>Grafik Suhu</h5><canvas id="c1"></canvas></div>
-            <div class="card"><h5>Grafik Gas & Hum</h5><canvas id="c2"></canvas></div>
-        </div>
+    <div class="grid-chart">
+        <div class="card"><h5>Grafik DHT11</h5><canvas id="c1"></canvas></div>
+        <div class="card"><h5>Grafik DS18B20</h5><canvas id="c2"></canvas></div>
+        <div class="card"><h5>Grafik Humidity</h5><canvas id="c3"></canvas></div>
+        <div class="card"><h5>Grafik Gas MQ-5</h5><canvas id="c4"></canvas></div>
     </div>
 
     <div class="card">
-        <h3>📜 DATA HISTORY</h3>
+        <h3 style="color: #db7093;">📜 DATA HISTORY (WIB)</h3>
         <table>
             <thead>
                 <tr><th>Waktu</th><th>DHT11</th><th>DS18B20</th><th>Hum</th><th>MQ-5</th><th>Sistem</th><th>Kondisi</th></tr>
@@ -55,68 +68,96 @@
     </div>
 
     <script>
-        const API = "https://script.google.com/macros/s/AKfycbyMzmdSyurOyb7bUFE7dbAFBCPYPzv3JBxwwAkT5VwbB2KBY8179c13rkHNk6JLbRRk/exec";
+        const API = "https://script.google.com/macros/s/AKfycbzezOpf_gUmt4EGSsDMkKyL8x--BXMVlmw6l_RCHZDd04fcdifvn8HzC2v4EPCxltE/exec";
         let gauges = [], charts = [];
+        let timer;
 
         window.onload = () => {
             gauges = [
-                new JustGage({id:"g1", value:0, min:0, max:60, title:"DHT", symbol:"°C"}),
-                new JustGage({id:"g2", value:0, min:0, max:60, title:"DS18", symbol:"°C"}),
-                new JustGage({id:"g3", value:0, min:0, max:100, title:"Hum", symbol:"%"}),
-                new JustGage({id:"g4", value:0, min:0, max:4000, title:"Gas", symbol:"ppm"})
+                new JustGage({id:"g1", value:0, min:0, max:60, title:"Suhu", symbol:"°C", color:"#ff69b4"}),
+                new JustGage({id:"g2", value:0, min:0, max:60, title:"Suhu", symbol:"°C", color:"#ff1493"}),
+                new JustGage({id:"g3", value:0, min:0, max:100, title:"Hum", symbol:"%", color:"#db7093"}),
+                new JustGage({id:"g4", value:0, min:0, max:5000, title:"Gas", symbol:"ppm", color:"#ffa500"})
             ];
             charts = [
                 initChart('c1', 'DHT11', '#ff69b4'),
-                initChart('c2', 'MQ-5', '#ffa500')
+                initChart('c2', 'DS18B20', '#ff1493'),
+                initChart('c3', 'Humidity', '#db7093'),
+                initChart('c4', 'MQ-5', '#ffa500')
             ];
-            setInterval(fetchData, 5000);
-            fetchData();
+            startFetching(5000);
         };
 
         function initChart(id, label, col) {
             return new Chart(document.getElementById(id), {
-                type:'line', data:{ labels:[], datasets:[{ label:label, data:[], borderColor:col, fill:false }] }
+                type:'line', 
+                data:{ labels:[], datasets:[{ label:label, data:[], borderColor:col, backgroundColor:col+'22', fill:true, tension:0.3 }] },
+                options: { responsive: true, maintainAspectRatio: false }
             });
         }
 
+        function startFetching(ms) {
+            if (timer) clearInterval(timer);
+            fetchData();
+            timer = setInterval(fetchData, ms);
+        }
+
+        function updateInterval() {
+            const detik = document.getElementById('intervalInput').value;
+            startFetching(detik * 1000);
+            alert("Interval update: " + detik + " detik");
+        }
+
         async function updateStatus(val) {
-            document.getElementById('statusLabel').innerText = "MENGIRIM PERINTAH: " + val;
+            document.getElementById('statusLabel').innerText = "MENGIRIM PERINTAH...";
             try {
-                // Gunakan mode no-cors agar request tidak diblokir browser
-                await fetch(`${API}?action=${val.toLowerCase()}`, { mode: 'no-cors' });
-                alert("Perintah " + val + " Terkirim!");
-                setTimeout(fetchData, 1500);
-            } catch (e) { alert("Error!"); }
+                // Menggunakan fetch dengan cache: 'no-cache' agar perintah langsung dieksekusi
+                await fetch(`${API}?action=${val.toLowerCase()}`, { mode: 'no-cors', cache: 'no-cache' });
+                alert("Sistem di-set ke: " + val);
+                setTimeout(fetchData, 1000);
+            } catch (e) { alert("Error koneksi!"); }
         }
 
         async function fetchData() {
             try {
-                const r = await fetch(API);
-                const data = await r.json();
+                // Menambahkan timestamp unik agar browser tidak mengambil data lama (cache)
+                const response = await fetch(`${API}?t=${Date.now()}`);
+                const data = await response.json();
                 
-                // FILTER KRUSIAL: Membuang baris header dan data "Tahun 2026"
-                const validData = data.filter(d => 
-                    d[0] && d[0] !== "Waktu" && !isNaN(parseFloat(d[1])) && parseFloat(d[1]) < 100
-                );
+                // Filter: Hanya ambil baris yang benar-benar berisi data sensor
+                const validData = data.filter(d => d[0] && d[0] !== "Waktu" && !isNaN(parseFloat(d[1])));
 
                 if (validData.length === 0) return;
                 const last = validData[validData.length - 1];
 
-                // Update Gauges
-                gauges[0].refresh(parseFloat(last[1]));
-                gauges[1].refresh(parseFloat(last[2]));
-                gauges[2].refresh(parseFloat(last[3]));
-                gauges[3].refresh(parseFloat(last[4]));
+                // Update Gauge (Baris terakhir)
+                gauges[0].refresh(parseFloat(last[1]) || 0);
+                gauges[1].refresh(parseFloat(last[2]) || 0);
+                gauges[2].refresh(parseFloat(last[3]) || 0);
+                gauges[3].refresh(parseFloat(last[4]) || 0);
+
+                // Update Grafik (10 data terakhir)
+                const history = validData.slice(-10);
+                const labels = history.map(d => new Date(d[0]).toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit', second:'2-digit'}));
+                
+                [1,2,3,4].forEach((col, i) => {
+                    charts[i].data.labels = labels;
+                    charts[i].data.datasets[0].data = history.map(d => parseFloat(d[col]) || 0);
+                    charts[i].update('none');
+                });
 
                 // Update Tabel
                 document.getElementById('rows').innerHTML = validData.slice(-6).reverse().map(d => {
                     let warnaK = d[6] === "BAHAYA" ? "#e74c3c" : "#2ecc71";
-                    let waktu = new Date(d[0]).toLocaleTimeString('id-ID');
-                    return `<tr><td>${waktu}</td><td>${d[1]}</td><td>${d[2]}</td><td>${d[3]}</td><td>${d[4]}</td><td>${d[5]}</td><td><span class="badge" style="background:${warnaK}">${d[6]}</span></td></tr>`;
+                    let jam = new Date(d[0]).toLocaleTimeString('id-ID');
+                    return `<tr><td>${jam}</td><td>${d[1]}°C</td><td>${d[2]}°C</td><td>${d[3]}%</td><td>${d[4]}</td><td>${d[5]}</td><td><span class="badge" style="background:${warnaK}">${d[6]}</span></td></tr>`;
                 }).join('');
                 
-                document.getElementById('statusLabel').innerText = "SISTEM: " + last[5];
-            } catch(e) {}
+                // Update Status Text
+                document.getElementById('statusLabel').innerText = "SISTEM: " + (last[5] === "LOGGING" ? "START" : last[5]);
+                document.getElementById('statusLabel').style.color = (last[5] === "START" || last[5] === "LOGGING") ? "#2ecc71" : "#ff1493";
+
+            } catch(e) { console.error("Gagal mengambil data", e); }
         }
     </script>
 </body>
